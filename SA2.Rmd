@@ -1,0 +1,110 @@
+---
+title: "SA2"
+output:
+  html_document: default
+  pdf_document: default
+date: "2023-05-05"
+---
+
+```{r,include=FALSE}
+mydata <- read.csv("D:/desktop/merged_BTC_data.csv", header = TRUE)
+library(anytime)
+library(plyr)
+library(dplyr)
+library(dgof)
+library(fitdistrplus)
+library(VGAM)
+library(DataCombine)
+library(data.table)
+library(EnvStats)
+library(ggplot2)
+library(tsallisqexp)
+library(poweRlaw)
+library(fitur)
+```
+
+
+```{r}
+summary(mydata)
+```
+
+
+```{r}
+mydata = DropNA(mydata, Var = "Open", message = FALSE)
+
+mydata['Data']=anydate(mydata[1,"Timestamp"])
+
+mydata[is.na(mydata)] <- 0
+```
+
+
+```{r}
+for (i in 1:nrow(mydata)){mydata[i,'Data'] <- anydate(mydata[i,'Timestamp'])}
+```
+
+
+```{r}
+df<-data.table(mydata)
+a=aggregate(df$Low, by=list(df$Data), min)
+names(a)[1] <- c("Data")
+names(a)[2] <- c("Low")
+b=aggregate(df$High, by=list(df$Data), max)
+names(b)[1] <- c("Data")
+names(b)[2] <- c("High")
+df<-merge(x = a, y = b, by = "Data", all = TRUE)
+```
+
+```{r}
+df["retorno"]=NaN
+df["Mid"]=NaN
+df[1,"Mid"]=(df[1,"High"]-df[1,"Low"])/2+df[1,"Low"]
+for (i in 2:nrow(df)){
+df[i,"Mid"]=(df[i,"High"]-df[i,"Low"])/2+df[i,"Low"]
+df[i,"retorno"] =(df[i,"Mid"]-df[i-1,"Mid"])/df[i-1,"Mid"]
+}
+```
+
+```{r, echo=FALSE}
+hist(DropNA(df['retorno']), breaks=10)
+qplot(DropNA(df['retorno']),
+geom="histogram",
+binwidth = 0.005,
+main = "Histograma do retorno do Par Bitcoin x USD",
+xlab = "Retorno",
+fill=I("blue"),
+col=I("red"),
+alpha=I(.2),
+xlim=c(-0.3,0.3))
+
+```
+```{r}
+df_teste=rnorm(length(DropNA(df['retorno'])), mean=mean(DropNA(df['retorno'])), sd=sd(DropNA(df['retorno'])))
+ks.test(DropNA(df['retorno']),df_teste)
+```
+
+
+```{r}
+df_teste=rt(length(DropNA(df['retorno'])), length(DropNA(df['retorno']))-1)
+ks.test(DropNA(df['retorno']),df_teste)
+```
+
+
+```{r}
+df_teste=rlaplace(length(DropNA(df['retorno'])), mean(DropNA(df['retorno'])), sd(DropNA(df['retorno'])))
+ks.test(DropNA(df['retorno']),df_teste)
+```
+
+```{r}
+df_teste=rtsal(length(DropNA(df['retorno'])), mean(DropNA(df['retorno'])), sd(DropNA(df['retorno'])))
+ks.test(DropNA(df['retorno']),df_teste)
+```
+
+```{r}
+df_teste=rplcon(length(DropNA(df['retorno'])), -0.3, sd(DropNA(df['retorno'])))
+ks.test(DropNA(df['retorno']),df_teste)
+```
+
+
+it seems we have a winner: Laplace, but closely followed by Normal.
+
+
